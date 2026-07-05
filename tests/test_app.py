@@ -232,7 +232,7 @@ def test_server_detail_shows_install_actions_when_packages_missing(tmp_path, mon
             finally:
                 session.close()
 
-        def fake_fetch(_server):
+        def fake_fetch(_server, include_jail_details=False):
             return {
                 'ufw': {'status': 'not-installed', 'rules': [], 'installed': False, 'raw': ''},
                 'fail2ban': {'jails': [], 'installed': False, 'raw': ''},

@@ -132,6 +132,13 @@
         <p>{{ fail2ban.jails|join(', ') if fail2ban.jails else "нет активных jail'ов" }}</p>
       </div>
 
+      {% if fail2ban.jails and not jail_details_loaded %}
+        <div class="notice info stack compact">
+          <p>Для быстрого открытия страницы детальные списки banned IP по jail не грузятся автоматически.</p>
+          <a class="button-link secondary" href="{{ url_for('web.server_detail', server_id=server.id, jail_details=1) }}">Загрузить детали fail2ban</a>
+        </div>
+      {% endif %}
+
       {% for jail in jail_details %}
         <article class="server-card stack compact">
           <div class="row spread wrap gap">
@@ -164,7 +171,9 @@
           </div>
         </article>
       {% else %}
-        <div class="empty-inline">Детали jail пока не получены.</div>
+        {% if jail_details_loaded %}
+          <div class="empty-inline">Детали jail пока не получены.</div>
+        {% endif %}
       {% endfor %}
     {% endif %}
   </section>

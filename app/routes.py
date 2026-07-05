@@ -124,7 +124,7 @@ def _parse_jail_sections(payload: str) -> list[dict]:
     return details
 
 
-def _fetch_server_state(server: Server) -> dict:
+def _fetch_server_state(server: Server, include_jail_details: bool = False) -> dict:
     bundle_command = """
 if command -v ufw >/dev/null 2>&1; then
   printf "%s\n" "### UFW ###"
@@ -137,16 +137,18 @@ if command -v fail2ban-client >/dev/null 2>&1; then
   fail2ban-client status 2>&1 || true
   printf "%s\n" "### END FAIL2BAN ###"
 
-  jail_list=$(fail2ban-client status 2>/dev/null | sed -n "s/.*Jail list:[[:space:]]*//p" | tr "," "\n")
-  while IFS= read -r jail; do
-    jail=$(printf "%s" "$jail" | xargs)
-    [ -z "$jail" ] && continue
-    printf "### JAIL:%s ###\n" "$jail"
-    fail2ban-client status "$jail" 2>&1 || true
-    printf "%s\n" "### END JAIL ###"
-  done <<< "$jail_list"
+  if [ "__INCLUDE_JAIL_DETAILS__" = "1" ]; then
+    jail_list=$(fail2ban-client status 2>/dev/null | sed -n "s/.*Jail list:[[:space:]]*//p" | tr "," "\n")
+    while IFS= read -r jail; do
+      jail=$(printf "%s" "$jail" | xargs)
+      [ -z "$jail" ] && continue
+      printf "### JAIL:%s ###\n" "$jail"
+      fail2ban-client status "$jail" 2>&1 || true
+      printf "%s\n" "### END JAIL ###"
+    done <<< "$jail_list"
+  fi
 fi
-""".strip()
+""".strip().replace("__INCLUDE_JAIL_DETAILS__", "1" if include_jail_details else "0")
 
     with RemoteExecutor(_server_creds(server)) as executor:
         payload = executor.run_script(bundle_command, use_sudo=True)
@@ -407,14 +409,21 @@ def server_detail(server_id: int):
     session_db = _session()
     try:
         server = session_db.get(Server, server_id)
-        state = _fetch_server_state(server)
+        include_jail_details = request.args.get('jail_details') == '1'
+        state = _fetch_server_state(server, include_jail_details=include_jail_details)
         facts = {
             'credential_source': 'SSH private key' if server.auth_type == 'ssh_key' else 'Password auth',
             'sudo_ready': 'yes' if server.encrypted_sudo_password else 'no',
             'ufw_rule_count': len(state['ufw']['rules']),
             'fail2ban_jail_count': len(state['fail2ban']['jails']),
         }
-        return render_template('server_detail.html', server=server, facts=facts, **state)
+        return render_template(
+            'server_detail.html',
+            server=server,
+            facts=facts,
+            jail_details_loaded=include_jail_details,
+            **state,
+        )
     except Exception as exc:  # noqa: BLE001
         flash(f'Не удалось получить состояние сервера: {exc}', 'error')
         return redirect(url_for('web.index'))
