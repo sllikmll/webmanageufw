@@ -1,5 +1,6 @@
 from functools import wraps
 from urllib.parse import urlparse
+import re
 
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import load_only
@@ -111,35 +112,68 @@ def _ensure_package_installed(executor: RemoteExecutor, package_name: str):
         raise RuntimeError(f'{package_name} не установлен на удалённом сервере')
 
 
+def _split_bundle_section(payload: str, name: str) -> str:
+    match = re.search(rf'### {re.escape(name)} ###\n(?P<body>.*?)\n### END {re.escape(name)} ###', payload, re.S)
+    return match.group('body').strip() if match else ''
+
+
+def _parse_jail_sections(payload: str) -> list[dict]:
+    details = []
+    for match in re.finditer(r'### JAIL:(?P<name>[^#]+) ###\n(?P<body>.*?)\n### END JAIL ###', payload, re.S):
+        details.append(parse_fail2ban_jail_status(match.group('body').strip()))
+    return details
+
+
 def _fetch_server_state(server: Server) -> dict:
+    bundle_command = """
+if command -v ufw >/dev/null 2>&1; then
+  echo '### UFW ###'
+  ufw status numbered 2>&1 || true
+  echo '### END UFW ###'
+fi
+
+if command -v fail2ban-client >/dev/null 2>&1; then
+  echo '### FAIL2BAN ###'
+  fail2ban-client status 2>&1 || true
+  echo '### END FAIL2BAN ###'
+
+  for jail in $(fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed '/^$/d'); do
+    echo \"### JAIL:${jail} ###\"
+    fail2ban-client status \"$jail\" 2>&1 || true
+    echo '### END JAIL ###'
+  done
+fi
+""".strip()
+
     with RemoteExecutor(_server_creds(server)) as executor:
-        ufw_installed = _package_installed(executor, 'ufw')
-        if ufw_installed:
-            ufw = parse_ufw_status_numbered(executor.run('ufw status numbered', use_sudo=True))
-            ufw['installed'] = True
-        else:
-            ufw = {
-                'status': 'not-installed',
-                'rules': [],
-                'installed': False,
-                'raw': '',
-            }
+        payload = executor.run(bundle_command, use_sudo=True)
 
-        fail2ban_installed = _package_installed(executor, 'fail2ban')
+    ufw_raw = _split_bundle_section(payload, 'UFW')
+    if ufw_raw:
+        ufw = parse_ufw_status_numbered(ufw_raw)
+        ufw['installed'] = True
+    else:
+        ufw = {
+            'status': 'not-installed',
+            'rules': [],
+            'installed': False,
+            'raw': '',
+        }
+
+    fail2ban_raw = _split_bundle_section(payload, 'FAIL2BAN')
+    if fail2ban_raw:
+        fail2ban = parse_fail2ban_status(fail2ban_raw)
+        fail2ban['installed'] = True
+        jail_details = _parse_jail_sections(payload)
+    else:
+        fail2ban = {
+            'jails': [],
+            'installed': False,
+            'raw': '',
+        }
         jail_details = []
-        if fail2ban_installed:
-            fail2ban = parse_fail2ban_status(executor.run('fail2ban-client status', use_sudo=True))
-            fail2ban['installed'] = True
-            for jail in fail2ban['jails']:
-                jail_details.append(parse_fail2ban_jail_status(executor.run(f'fail2ban-client status {jail}', use_sudo=True)))
-        else:
-            fail2ban = {
-                'jails': [],
-                'installed': False,
-                'raw': '',
-            }
 
-        return {'ufw': ufw, 'fail2ban': fail2ban, 'jail_details': jail_details}
+    return {'ufw': ufw, 'fail2ban': fail2ban, 'jail_details': jail_details}
 
 
 def _apply_server_form(server: Server, form):
