@@ -1,0 +1,13 @@
+services:
+  webmanageufw:
+    image: ghcr.io/sllikmll/webmanageufw:latest
+    container_name: webmanageufw
+    restart: unless-stopped
+    ports:
+      - "8098:8080"
+    environment:
+      SECRET_KEY: change-me
+      APP_ENCRYPTION_KEY: change-this-key
+      DATABASE_URL: sqlite:////app/data/app.db
+    volumes:
+      - ./data:/app/data

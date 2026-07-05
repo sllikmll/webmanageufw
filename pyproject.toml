@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "webmanageufw"
+version = "0.1.0"
+description = "Web UI для удалённого управления UFW и fail2ban по SSH"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "flask>=3.1.1,<4",
+  "sqlalchemy>=2.0.41,<3",
+  "paramiko>=3.5.1,<4",
+  "cryptography>=45.0.5,<46",
+  "gunicorn>=23.0.0,<24",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4.1,<9",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+  "error",
+]

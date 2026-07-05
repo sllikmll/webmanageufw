@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="grid two">
+  <section class="panel">
+    <h2>Добавить сервер</h2>
+    <form method="post" action="{{ url_for('web.create_server') }}" class="stack">
+      <label>Название<input type="text" name="name" required></label>
+      <label>IP / Host<input type="text" name="host" required></label>
+      <label>Порт<input type="number" name="port" value="22" required></label>
+      <label>Логин<input type="text" name="username" required></label>
+      <label>Тип авторизации
+        <select name="auth_type">
+          <option value="password">password</option>
+          <option value="ssh_key">ssh key</option>
+        </select>
+      </label>
+      <label>Пароль<input type="password" name="password"></label>
+      <label>SSH key<textarea name="private_key" rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
+      <label>Sudo password<input type="password" name="sudo_password"></label>
+      <button type="submit">Сохранить</button>
+    </form>
+  </section>
+  <section class="panel">
+    <h2>Серверы</h2>
+    <div class="stack">
+      {% for server in servers %}
+        <article class="server-card">
+          <div>
+            <h3><a href="{{ url_for('web.server_detail', server_id=server.id) }}">{{ server.name }}</a></h3>
+            <p>{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
+            <small>{{ server.auth_type }}</small>
+          </div>
+          <div class="row gap">
+            <form method="post" action="{{ url_for('web.test_server', server_id=server.id) }}">
+              <button type="submit">Проверить SSH</button>
+            </form>
+            <form method="post" action="{{ url_for('web.delete_server', server_id=server.id) }}" onsubmit="return confirm('Удалить сервер?');">
+              <button type="submit" class="danger">Удалить</button>
+            </form>
+          </div>
+        </article>
+      {% else %}
+        <p>Пока пусто. Само себя не настроит, увы 🙂</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
