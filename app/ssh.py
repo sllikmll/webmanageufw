@@ -99,12 +99,14 @@ class RemoteExecutor:
                 if not script.endswith("\n"):
                     stdin.write("\n")
                 stdin.flush()
+                stdin.channel.shutdown_write()
             else:
                 stdin, stdout, stderr = client.exec_command("bash -s")
                 stdin.write(script)
                 if not script.endswith("\n"):
                     stdin.write("\n")
                 stdin.flush()
+                stdin.channel.shutdown_write()
             out = stdout.read().decode('utf-8', 'ignore')
             err = stderr.read().decode('utf-8', 'ignore')
             code = stdout.channel.recv_exit_status()
