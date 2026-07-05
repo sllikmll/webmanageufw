@@ -22,21 +22,22 @@ PACKAGE_INSTALL_COMMANDS = {
     'fail2ban': "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y fail2ban && (systemctl enable --now fail2ban || service fail2ban start)",
 }
 
+AUTH_TYPE_LABELS = {
+    'password': 'Password',
+    'ssh_key': 'SSH key',
+}
 
 
 def _cipher() -> CredentialCipher:
     return CredentialCipher(current_app.config['APP_ENCRYPTION_KEY'])
 
 
-
 def _session():
     return SessionLocal()
 
 
-
 def _auth_enabled() -> bool:
     return bool(current_app.config.get('ADMIN_USERNAME') and current_app.config.get('ADMIN_PASSWORD'))
-
 
 
 def _is_safe_next_url(target: str | None) -> bool:
@@ -45,6 +46,10 @@ def _is_safe_next_url(target: str | None) -> bool:
     parts = urlparse(target)
     return not parts.netloc and parts.path.startswith('/')
 
+
+@web.app_template_filter('auth_label')
+def auth_label(value: str) -> str:
+    return AUTH_TYPE_LABELS.get(value, value)
 
 
 @web.before_app_request
@@ -67,7 +72,6 @@ def require_login():
     return redirect(url_for('web.login', next=request.full_path if request.query_string else request.path))
 
 
-
 def login_required(view_func):
     @wraps(view_func)
     def wrapper(*args, **kwargs):
@@ -76,7 +80,6 @@ def login_required(view_func):
         return view_func(*args, **kwargs)
 
     return wrapper
-
 
 
 def _server_creds(server: Server) -> SSHCredentials:
@@ -91,7 +94,6 @@ def _server_creds(server: Server) -> SSHCredentials:
     )
 
 
-
 def _package_installed(executor: RemoteExecutor, package_name: str) -> bool:
     command = PACKAGE_COMMANDS[package_name]
     try:
@@ -101,11 +103,9 @@ def _package_installed(executor: RemoteExecutor, package_name: str) -> bool:
         return False
 
 
-
 def _ensure_package_installed(executor: RemoteExecutor, package_name: str):
     if not _package_installed(executor, package_name):
         raise RuntimeError(f'{package_name} не установлен на удалённом сервере')
-
 
 
 def _fetch_server_state(server: Server) -> dict:
@@ -140,9 +140,9 @@ def _fetch_server_state(server: Server) -> dict:
     return {'ufw': ufw, 'fail2ban': fail2ban, 'jail_details': jail_details}
 
 
-
 def _apply_server_form(server: Server, form):
     cipher = _cipher()
+    previous_auth_type = server.auth_type
     auth_type = form['auth_type']
 
     server.name = form['name'].strip()
@@ -158,19 +158,54 @@ def _apply_server_form(server: Server, form):
     if auth_type == 'password':
         if password:
             server.encrypted_password = cipher.encrypt(password)
-        elif server.auth_type != 'password':
+        elif previous_auth_type != 'password':
             server.encrypted_password = None
         server.encrypted_private_key = None
     else:
         if private_key:
             server.encrypted_private_key = cipher.encrypt(private_key)
-        elif server.auth_type != 'ssh_key':
+        elif previous_auth_type != 'ssh_key':
             server.encrypted_private_key = None
         server.encrypted_password = None
 
     if sudo_password:
         server.encrypted_sudo_password = cipher.encrypt(sudo_password)
 
+
+def _build_dashboard_summary(servers: list[Server]) -> dict:
+    ssh_key_count = sum(1 for server in servers if server.auth_type == 'ssh_key')
+    password_count = sum(1 for server in servers if server.auth_type == 'password')
+    sudo_ready_count = sum(1 for server in servers if bool(server.encrypted_sudo_password))
+    return {
+        'total': len(servers),
+        'ssh_key_count': ssh_key_count,
+        'password_count': password_count,
+        'sudo_ready_count': sudo_ready_count,
+    }
+
+
+def _filter_servers(servers: list[Server], search_query: str, auth_filter: str) -> list[Server]:
+    filtered = servers
+    if auth_filter in {'password', 'ssh_key'}:
+        filtered = [server for server in filtered if server.auth_type == auth_filter]
+
+    if search_query:
+        needle = search_query.lower()
+        filtered = [
+            server for server in filtered
+            if needle in server.name.lower()
+            or needle in server.host.lower()
+            or needle in server.username.lower()
+        ]
+    return filtered
+
+
+def _server_card_meta(server: Server) -> dict:
+    return {
+        'auth_label': AUTH_TYPE_LABELS.get(server.auth_type, server.auth_type),
+        'uses_sudo_password': bool(server.encrypted_sudo_password),
+        'credential_source': 'private key' if server.auth_type == 'ssh_key' else 'password',
+    }
 
 
 @web.get('/health')
@@ -207,10 +242,29 @@ def logout():
 @web.get('/')
 @login_required
 def index():
+    search_query = (request.args.get('q') or '').strip()
+    auth_filter = (request.args.get('auth_type') or '').strip()
+
     session_db = _session()
     try:
         servers = session_db.query(Server).order_by(Server.name.asc()).all()
-        return render_template('index.html', servers=servers, auth_enabled=_auth_enabled())
+        filtered_servers = _filter_servers(servers, search_query, auth_filter)
+        server_cards = [
+            {
+                'server': server,
+                'meta': _server_card_meta(server),
+            }
+            for server in filtered_servers
+        ]
+        return render_template(
+            'index.html',
+            servers=filtered_servers,
+            server_cards=server_cards,
+            summary=_build_dashboard_summary(servers),
+            search_query=search_query,
+            auth_filter=auth_filter,
+            auth_enabled=_auth_enabled(),
+        )
     finally:
         session_db.close()
 
@@ -220,7 +274,7 @@ def index():
 def create_server():
     session_db = _session()
     try:
-        server = Server()
+        server = Server(auth_type=request.form['auth_type'])
         _apply_server_form(server, request.form)
         session_db.add(server)
         session_db.commit()
@@ -247,12 +301,7 @@ def update_server(server_id: int):
     session_db = _session()
     try:
         server = session_db.get(Server, server_id)
-        previous_auth_type = server.auth_type
         _apply_server_form(server, request.form)
-        if request.form['auth_type'] == 'password' and not (request.form.get('password') or '').strip() and previous_auth_type != 'password':
-            server.encrypted_password = None
-        if request.form['auth_type'] == 'ssh_key' and not (request.form.get('private_key') or '').strip() and previous_auth_type != 'ssh_key':
-            server.encrypted_private_key = None
         session_db.commit()
         flash('Карточка сервера обновлена', 'success')
         return redirect(url_for('web.server_detail', server_id=server_id))
@@ -298,7 +347,13 @@ def server_detail(server_id: int):
     try:
         server = session_db.get(Server, server_id)
         state = _fetch_server_state(server)
-        return render_template('server_detail.html', server=server, **state)
+        facts = {
+            'credential_source': 'SSH private key' if server.auth_type == 'ssh_key' else 'Password auth',
+            'sudo_ready': 'yes' if server.encrypted_sudo_password else 'no',
+            'ufw_rule_count': len(state['ufw']['rules']),
+            'fail2ban_jail_count': len(state['fail2ban']['jails']),
+        }
+        return render_template('server_detail.html', server=server, facts=facts, **state)
     except Exception as exc:  # noqa: BLE001
         flash(f'Не удалось получить состояние сервера: {exc}', 'error')
         return redirect(url_for('web.index'))

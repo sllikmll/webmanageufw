@@ -1,36 +1,165 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="grid two">
-  <section class="panel">
-    <h2>Добавить сервер</h2>
+<section class="hero panel">
+  <div class="hero-copy stack compact">
+    <p class="eyebrow">Operational overview</p>
+    <h2>Обзор инфраструктуры</h2>
+    <p class="lede">Держи список серверов, SSH-способы доступа и готовность к firewall automation в одном месте. Всё, что нужно для быстрых UFW/fail2ban задач, без лишнего шума.</p>
+  </div>
+  <div class="stats-grid">
+    <article class="stat-card">
+      <span class="stat-label">Всего серверов</span>
+      <strong class="stat-value">{{ summary.total }}</strong>
+      <small>Все карточки в базе</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">SSH key</span>
+      <strong class="stat-value">{{ summary.ssh_key_count }}</strong>
+      <small>Предпочтительный способ доступа</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Password auth</span>
+      <strong class="stat-value">{{ summary.password_count }}</strong>
+      <small>Осторожно, но поддерживается</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">sudo ready</span>
+      <strong class="stat-value">{{ summary.sudo_ready_count }}</strong>
+      <small>Есть сохранённый sudo password</small>
+    </article>
+  </div>
+</section>
+
+<div class="grid layout-dashboard">
+  <section class="panel stack">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Create</p>
+        <h3>Добавить сервер</h3>
+      </div>
+      <span class="badge badge-neutral">MVP+</span>
+    </div>
+
+    <div class="notice info stack compact">
+      <p><strong>Best practice:</strong> для постоянной работы лучше использовать отдельного automation-user или root по ключу. Парольный доступ тоже ок, но только когда реально нужен.</p>
+    </div>
+
     <form method="post" action="{{ url_for('web.create_server') }}" class="stack">
-      <label>Название<input type="text" name="name" required></label>
-      <label>IP / Host<input type="text" name="host" required></label>
-      <label>Порт<input type="number" name="port" value="22" required></label>
-      <label>Логин<input type="text" name="username" required></label>
+      <div class="form-grid two">
+        <label>Название
+          <input type="text" name="name" placeholder="server-name" required>
+        </label>
+        <label>IP / Host
+          <input type="text" name="host" placeholder="194.147.215.252" required>
+        </label>
+      </div>
+
+      <div class="form-grid two">
+        <label>Порт
+          <input type="number" name="port" value="22" required>
+        </label>
+        <label>Логин
+          <input type="text" name="username" value="root" required>
+        </label>
+      </div>
+
       <label>Тип авторизации
         <select name="auth_type">
-          <option value="password">password</option>
-          <option value="ssh_key">ssh key</option>
+          <option value="ssh_key">SSH key</option>
+          <option value="password">Password</option>
         </select>
       </label>
-      <label>Пароль<input type="password" name="password"></label>
-      <label>SSH key<textarea name="private_key" rows="6" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
-      <label>Sudo password<input type="password" name="sudo_password"></label>
-      <button type="submit">Сохранить</button>
+
+      <label>Пароль
+        <input type="password" name="password" placeholder="Нужен только для password auth">
+      </label>
+      <label>SSH key
+        <textarea name="private_key" rows="7" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+      </label>
+      <label>Sudo password
+        <input type="password" name="sudo_password" placeholder="Нужен, если команды идут через sudo и ты не root">
+      </label>
+
+      <div class="checklist muted-card">
+        <div>
+          <strong>Перед сохранением проверь:</strong>
+        </div>
+        <ul>
+          <li>порт SSH реально слушает нужный host;</li>
+          <li>тип auth совпадает с тем, как сервер пускает внутрь;</li>
+          <li>если сервер не root-only, то есть sudo password.</li>
+        </ul>
+      </div>
+
+      <button type="submit">Сохранить сервер</button>
     </form>
   </section>
-  <section class="panel">
-    <h2>Серверы</h2>
-    <div class="stack">
-      {% for server in servers %}
-        <article class="server-card">
-          <div>
-            <h3><a href="{{ url_for('web.server_detail', server_id=server.id) }}">{{ server.name }}</a></h3>
-            <p>{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
-            <small>{{ server.auth_type }}</small>
+
+  <section class="stack">
+    <section class="panel stack compact">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Search</p>
+          <h3>Каталог серверов</h3>
+        </div>
+        <span class="badge">{{ server_cards|length }} из {{ summary.total }}</span>
+      </div>
+
+      <form method="get" class="filter-bar">
+        <label class="grow">Поиск
+          <input type="text" name="q" value="{{ search_query }}" placeholder="Имя, IP, логин">
+        </label>
+        <label>Auth type
+          <select name="auth_type">
+            <option value="">Все</option>
+            <option value="ssh_key" {% if auth_filter == 'ssh_key' %}selected{% endif %}>SSH key</option>
+            <option value="password" {% if auth_filter == 'password' %}selected{% endif %}>Password</option>
+          </select>
+        </label>
+        <div class="filter-actions">
+          <button type="submit">Фильтровать</button>
+          <a class="button-link secondary" href="{{ url_for('web.index') }}">Сбросить</a>
+        </div>
+      </form>
+    </section>
+
+    <section class="stack">
+      {% for item in server_cards %}
+        {% set server = item.server %}
+        {% set meta = item.meta %}
+        <article class="server-card stack compact">
+          <div class="row spread wrap gap">
+            <div>
+              <h3><a href="{{ url_for('web.server_detail', server_id=server.id) }}">{{ server.name }}</a></h3>
+              <p class="subtle">{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
+            </div>
+            <div class="row gap wrap">
+              <span class="badge badge-neutral">{{ meta.auth_label }}</span>
+              {% if meta.uses_sudo_password %}
+                <span class="badge badge-success">sudo ready</span>
+              {% else %}
+                <span class="badge badge-warning">sudo missing</span>
+              {% endif %}
+            </div>
           </div>
+
+          <div class="meta-grid">
+            <div>
+              <span class="meta-label">Credentials</span>
+              <strong>{{ meta.credential_source }}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Created</span>
+              <strong>{{ server.created_at.strftime('%Y-%m-%d') }}</strong>
+            </div>
+            <div>
+              <span class="meta-label">Updated</span>
+              <strong>{{ server.updated_at.strftime('%Y-%m-%d') }}</strong>
+            </div>
+          </div>
+
           <div class="row gap wrap">
+            <a class="button-link" href="{{ url_for('web.server_detail', server_id=server.id) }}">Открыть</a>
             <a class="button-link secondary" href="{{ url_for('web.edit_server', server_id=server.id) }}">Редактировать</a>
             <form method="post" action="{{ url_for('web.test_server', server_id=server.id) }}">
               <button type="submit">Проверить SSH</button>
@@ -41,9 +170,15 @@
           </div>
         </article>
       {% else %}
-        <p>Пока пусто. Само себя не настроит, увы 🙂</p>
+        <section class="panel empty-state stack">
+          <h3>Ничего не найдено</h3>
+          <p>Либо база пока пустая, либо фильтр слишком суровый. Такое бывает даже с людьми, а тут всего лишь UI 🙂</p>
+          <div class="row gap wrap">
+            <a class="button-link" href="{{ url_for('web.index') }}">Сбросить фильтры</a>
+          </div>
+        </section>
       {% endfor %}
-    </div>
+    </section>
   </section>
 </div>
 {% endblock %}

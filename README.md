@@ -1,26 +1,77 @@
 # webmanageufw
 
-`webmanageufw` — минимальный self-hosted сервис для управления **UFW** и **fail2ban** на удалённых Linux-серверах через SSH.
+`webmanageufw` — self-hosted веб-панель для удалённого управления **UFW** и **fail2ban** на Linux-серверах через SSH.
+
+Проект заточен под простой, быстрый operational workflow:
+- хранишь серверы в одной панели;
+- заходишь в карточку нужного хоста;
+- проверяешь SSH;
+- смотришь состояние UFW / fail2ban;
+- делаешь точечные действия без ручного SSH и вспоминания команд.
+
+## Зачем это вообще
+
+Когда серверов становится больше двух, начинается классика:
+- где-то вход по key, где-то по password;
+- на одном хосте `ufw` уже есть, на другом его ещё нет;
+- fail2ban jail'ы надо быстро посмотреть прямо сейчас, а не через 5 `ssh`-вкладок;
+- список IP, правил и банов живёт в голове, а голова, как известно, не SQLite.
+
+`webmanageufw` закрывает именно этот скучный, но важный кусок рутины.
 
 ## Что умеет сейчас
 
+### Серверы и доступ
 - хранит список серверов в SQLite;
 - поддерживает авторизацию по `password` или `SSH key`;
-- хранит секреты в зашифрованном виде (через `APP_ENCRYPTION_KEY`);
-- защищает UI через логин/пароль (`ADMIN_USERNAME` / `ADMIN_PASSWORD`);
-- проверяет SSH-подключение;
+- хранит секреты в зашифрованном виде через `APP_ENCRYPTION_KEY`;
+- поддерживает отдельный `sudo password`, если работа идёт не под root;
+- позволяет редактировать карточку сервера;
+- умеет проверять SSH-подключение.
+
+### UFW
 - показывает `ufw status numbered`;
-- умеет `enable`, `disable`, `reload` для UFW;
+- умеет `enable`, `disable`, `reload`;
 - умеет добавлять и удалять UFW rules;
+- если `ufw` не установлен — может поставить его кнопкой из UI.
+
+### fail2ban
 - показывает `fail2ban-client status` и список jail'ов;
-- умеет `banip` / `unbanip` для fail2ban;
-- умеет подсказать, что `ufw` / `fail2ban` не установлены, и установить их кнопкой из UI;
-- собирается в Docker image и публикуется в GHCR.
+- показывает забаненные IP по jail;
+- умеет `banip` / `unbanip`;
+- если `fail2ban` не установлен — может поставить его из UI.
 
-## Ограничения MVP
+### UI / UX
+- защищён логином/паролем (`ADMIN_USERNAME` / `ADMIN_PASSWORD`);
+- имеет dashboard summary на главной;
+- поддерживает поиск и фильтрацию серверов;
+- показывает quick facts по credential type и sudo readiness;
+- даёт более user-friendly onboarding и empty states.
 
-- для не-root пользователя нужен `sudo password`, если управление идёт через `sudo`.
-- установка пакетов сейчас рассчитана прежде всего на Debian/Ubuntu (`apt-get`).
+### Delivery
+- собирается в Docker image;
+- публикуется в GHCR через GitHub Actions;
+- готов для развёртывания на отдельном хосте или VPS.
+
+## UX принципы, по которым проект доработан
+
+При доработке интерфейса использовались общепринятые best practices для internal/admin tools:
+
+- **dashboard-first IA** — сначала обзор и быстрые сигналы, потом детали;
+- **progressive disclosure** — на главной не валим всю операционку разом, а ведём в карточку сервера;
+- **clear hierarchy** — summary → filters → cards → actions;
+- **high-signal cards** — имя, host, auth type, sudo readiness, timestamps;
+- **empty / warning states** — UI объясняет, что делать дальше, а не просто молчит;
+- **опасные действия визуально выделены** — delete и destructive flows не маскируются под обычные кнопки;
+- **operator-friendly copy** — интерфейс пишет по делу и человеческим языком.
+
+## Ограничения текущей версии
+
+- для не-root пользователя нужен `sudo password`, если команды идут через `sudo`;
+- автоматическая установка пакетов сейчас рассчитана прежде всего на Debian/Ubuntu (`apt-get`);
+- массовые действия по нескольким серверам пока не реализованы;
+- нет audit log / history действий;
+- пока нет полноценной role model с несколькими пользователями.
 
 ## Локальный запуск
 
@@ -67,7 +118,7 @@ cd /root/docker/webmanageufw
 docker compose up -d
 ```
 
-UI будет доступен на `http://HOST:8098`.
+После этого UI будет доступен на `http://HOST:8098`.
 
 ## GitHub Container Registry
 
@@ -77,8 +128,20 @@ UI будет доступен на `http://HOST:8098`.
 ghcr.io/sllikmll/webmanageufw:latest
 ```
 
+## Suggested roadmap
+
+Нормальные следующие шаги для v2:
+
+1. bulk actions по нескольким серверам;
+2. SSH test + package readiness прямо на dashboard;
+3. audit log действий;
+4. health badges / last check timestamp;
+5. multi-user auth и роли;
+6. импорт серверов из `~/.ssh/config`.
+
 ## Безопасность
 
 - обязательно меняй `SECRET_KEY` и `APP_ENCRYPTION_KEY` в production;
 - не теряй `APP_ENCRYPTION_KEY`, иначе сохранённые credentials не расшифруются;
-- лучше использовать отдельного automation-user с ограниченными правами, а не бездумный root-везде. Да, капитан очевидность, но всё же 😌
+- лучше использовать отдельного automation-user с ограниченными правами, а не бездумный root-везде;
+- если это торчит наружу — ставь reverse proxy, HTTPS и нормальный доступ, а не “ай потом закроем”. Потом обычно не закрывают 😏

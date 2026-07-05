@@ -1,28 +1,55 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="panel stack">
-  <div class="row spread wrap">
+  <div class="section-head">
     <div>
+      <p class="eyebrow">Update configuration</p>
       <h2>Редактировать сервер</h2>
-      <p>{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
+      <p class="subtle">{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
     </div>
-    <a class="button-link" href="{{ url_for('web.server_detail', server_id=server.id) }}">Назад</a>
+    <a class="button-link secondary" href="{{ url_for('web.server_detail', server_id=server.id) }}">Назад</a>
   </div>
 
   <form method="post" action="{{ url_for('web.update_server', server_id=server.id) }}" class="stack">
-    <label>Название<input type="text" name="name" value="{{ server.name }}" required></label>
-    <label>IP / Host<input type="text" name="host" value="{{ server.host }}" required></label>
-    <label>Порт<input type="number" name="port" value="{{ server.port }}" required></label>
-    <label>Логин<input type="text" name="username" value="{{ server.username }}" required></label>
+    <div class="form-grid two">
+      <label>Название
+        <input type="text" name="name" value="{{ server.name }}" required>
+      </label>
+      <label>IP / Host
+        <input type="text" name="host" value="{{ server.host }}" required>
+      </label>
+    </div>
+
+    <div class="form-grid two">
+      <label>Порт
+        <input type="number" name="port" value="{{ server.port }}" required>
+      </label>
+      <label>Логин
+        <input type="text" name="username" value="{{ server.username }}" required>
+      </label>
+    </div>
+
     <label>Тип авторизации
       <select name="auth_type">
-        <option value="password" {% if server.auth_type == 'password' %}selected{% endif %}>password</option>
-        <option value="ssh_key" {% if server.auth_type == 'ssh_key' %}selected{% endif %}>ssh key</option>
+        <option value="password" {% if server.auth_type == 'password' %}selected{% endif %}>Password</option>
+        <option value="ssh_key" {% if server.auth_type == 'ssh_key' %}selected{% endif %}>SSH key</option>
       </select>
     </label>
-    <label>Новый пароль <small>(оставь пустым, чтобы не менять)</small><input type="password" name="password"></label>
-    <label>Новый SSH key <small>(оставь пустым, чтобы не менять)</small><textarea name="private_key" rows="8" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
-    <label>Новый sudo password <small>(оставь пустым, чтобы не менять)</small><input type="password" name="sudo_password"></label>
+
+    <label>Новый пароль
+      <input type="password" name="password" placeholder="Оставь пустым, чтобы не менять">
+    </label>
+    <label>Новый SSH key
+      <textarea name="private_key" rows="8" placeholder="Оставь пустым, чтобы не менять"></textarea>
+    </label>
+    <label>Новый sudo password
+      <input type="password" name="sudo_password" placeholder="Оставь пустым, чтобы не менять">
+    </label>
+
+    <div class="notice info stack compact">
+      <p>Если меняешь тип авторизации, проверь, что на хосте реально разрешён именно этот способ входа. Да, это тот самый момент, где потом обычно начинается “а почему SSH не заходит?”.</p>
+    </div>
+
     <div class="row gap wrap">
       <button type="submit">Сохранить изменения</button>
       <a class="button-link secondary" href="{{ url_for('web.server_detail', server_id=server.id) }}">Отмена</a>

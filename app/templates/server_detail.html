@@ -1,10 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="panel stack">
-  <div class="row spread wrap">
-    <div>
+<section class="hero panel compact-hero">
+  <div class="row spread wrap gap">
+    <div class="stack compact">
+      <p class="eyebrow">Server detail</p>
       <h2>{{ server.name }}</h2>
-      <p>{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
+      <p class="lede">{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
     </div>
     <div class="row gap wrap">
       <a class="button-link secondary" href="{{ url_for('web.edit_server', server_id=server.id) }}">Редактировать</a>
@@ -12,91 +13,158 @@
       <a class="button-link" href="{{ url_for('web.index') }}">Назад</a>
     </div>
   </div>
+
+  <div class="stats-grid compact-stats">
+    <article class="stat-card">
+      <span class="stat-label">Credentials</span>
+      <strong class="stat-value small">{{ facts.credential_source }}</strong>
+      <small>Как приложение ходит на сервер</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">sudo</span>
+      <strong class="stat-value small">{{ facts.sudo_ready }}</strong>
+      <small>Есть ли сохранённый sudo password</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">UFW rules</span>
+      <strong class="stat-value">{{ facts.ufw_rule_count }}</strong>
+      <small>Количество видимых правил</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Fail2ban jails</span>
+      <strong class="stat-value">{{ facts.fail2ban_jail_count }}</strong>
+      <small>Сколько jail'ов активно</small>
+    </article>
+  </div>
 </section>
 
-<div class="grid two">
+<div class="grid two-equal">
   <section class="panel stack">
-    <div class="row spread wrap"><h3>UFW</h3><span class="badge">{{ ufw.status }}</span></div>
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Firewall</p>
+        <h3>UFW</h3>
+      </div>
+      <span class="badge {% if ufw.installed %}badge-success{% else %}badge-warning{% endif %}">{{ ufw.status }}</span>
+    </div>
+
     {% if not ufw.installed %}
       <div class="notice warning stack compact">
-        <p>UFW на этом сервере не установлен.</p>
+        <p><strong>UFW не найден.</strong> Приложение может поставить пакет само и после этого уже давать операции с правилами.</p>
         <form method="post" action="{{ url_for('web.install_package', server_id=server.id) }}">
           <input type="hidden" name="package_name" value="ufw">
           <button type="submit">Установить UFW</button>
         </form>
       </div>
     {% else %}
-      <div class="row gap wrap">
+      <div class="action-cluster">
         <form method="post" action="{{ url_for('web.ufw_action', server_id=server.id) }}"><input type="hidden" name="action" value="enable"><button type="submit">Enable</button></form>
-        <form method="post" action="{{ url_for('web.ufw_action', server_id=server.id) }}"><input type="hidden" name="action" value="disable"><button type="submit">Disable</button></form>
-        <form method="post" action="{{ url_for('web.ufw_action', server_id=server.id) }}"><input type="hidden" name="action" value="reload"><button type="submit">Reload</button></form>
+        <form method="post" action="{{ url_for('web.ufw_action', server_id=server.id) }}"><input type="hidden" name="action" value="disable"><button type="submit" class="secondary">Disable</button></form>
+        <form method="post" action="{{ url_for('web.ufw_action', server_id=server.id) }}"><input type="hidden" name="action" value="reload"><button type="submit" class="secondary">Reload</button></form>
       </div>
-      <form method="post" action="{{ url_for('web.add_ufw_rule', server_id=server.id) }}" class="stack compact">
-        <h4>Добавить правило</h4>
-        <div class="row gap wrap">
-          <label>Action<select name="action"><option value="allow">allow</option><option value="deny">deny</option></select></label>
-          <label>Port<input name="port" placeholder="22" required></label>
-          <label>Proto<select name="protocol"><option value="tcp">tcp</option><option value="udp">udp</option></select></label>
+
+      <form method="post" action="{{ url_for('web.add_ufw_rule', server_id=server.id) }}" class="stack compact panel inset-panel">
+        <div>
+          <h4>Добавить правило</h4>
+          <p class="subtle">Быстрое правило для allow/deny по порту. Для сложной политики всё ещё лучше держать голову включённой, увы.</p>
         </div>
-        <label>Source (опционально)<input name="source" placeholder="1.2.3.4/32"></label>
-        <label>Comment (опционально)<input name="comment" placeholder="ssh office"></label>
+        <div class="form-grid three">
+          <label>Action
+            <select name="action"><option value="allow">allow</option><option value="deny">deny</option></select>
+          </label>
+          <label>Port
+            <input name="port" placeholder="22" required>
+          </label>
+          <label>Protocol
+            <select name="protocol"><option value="tcp">tcp</option><option value="udp">udp</option></select>
+          </label>
+        </div>
+        <div class="form-grid two">
+          <label>Source (optional)
+            <input name="source" placeholder="1.2.3.4/32">
+          </label>
+          <label>Comment (optional)
+            <input name="comment" placeholder="ssh office">
+          </label>
+        </div>
         <button type="submit">Добавить rule</button>
       </form>
+
       <div class="stack compact">
         {% for rule in ufw.rules %}
-          <div class="server-card row spread wrap">
-            <div>
-              <strong>[{{ rule.number }}]</strong> {{ rule.to }} · {{ rule.action }} · {{ rule.from }}
+          <article class="server-card row spread wrap gap">
+            <div class="stack compact">
+              <strong>[{{ rule.number }}] {{ rule.to }}</strong>
+              <p class="subtle">{{ rule.action }} · from {{ rule.from }}</p>
             </div>
             <form method="post" action="{{ url_for('web.delete_ufw_rule', server_id=server.id) }}">
               <input type="hidden" name="rule_number" value="{{ rule.number }}">
               <button type="submit" class="danger">Удалить</button>
             </form>
-          </div>
+          </article>
         {% else %}
-          <p>Правила не найдены.</p>
+          <div class="empty-inline">Правила не найдены.</div>
         {% endfor %}
       </div>
     {% endif %}
   </section>
 
   <section class="panel stack">
-    <h3>fail2ban</h3>
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Intrusion control</p>
+        <h3>fail2ban</h3>
+      </div>
+      <span class="badge {% if fail2ban.installed %}badge-success{% else %}badge-warning{% endif %}">{{ 'installed' if fail2ban.installed else 'not installed' }}</span>
+    </div>
+
     {% if not fail2ban.installed %}
       <div class="notice warning stack compact">
-        <p>fail2ban на этом сервере не установлен.</p>
+        <p><strong>fail2ban не найден.</strong> Можно поставить прямо отсюда и сразу получить ban/unban workflow.</p>
         <form method="post" action="{{ url_for('web.install_package', server_id=server.id) }}">
           <input type="hidden" name="package_name" value="fail2ban">
           <button type="submit">Установить fail2ban</button>
         </form>
       </div>
     {% else %}
-      <p>Активные jail'ы: {{ fail2ban.jails|join(', ') if fail2ban.jails else 'нет' }}</p>
+      <div class="muted-card stack compact">
+        <strong>Активные jail'ы</strong>
+        <p>{{ fail2ban.jails|join(', ') if fail2ban.jails else "нет активных jail'ов" }}</p>
+      </div>
+
       {% for jail in jail_details %}
         <article class="server-card stack compact">
-          <div class="row spread wrap">
-            <strong>{{ jail.jail }}</strong>
-            <span class="badge">banned: {{ jail.currently_banned }}</span>
+          <div class="row spread wrap gap">
+            <div>
+              <strong>{{ jail.jail }}</strong>
+              <p class="subtle">Banned now: {{ jail.currently_banned }}</p>
+            </div>
+            <span class="badge badge-neutral">{{ jail.banned_ips|length }} IP</span>
           </div>
-          <div>
-            <p>Banned IPs: {{ jail.banned_ips|join(', ') if jail.banned_ips else 'нет' }}</p>
-          </div>
-          <form method="post" action="{{ url_for('web.ban_ip', server_id=server.id) }}" class="row gap wrap">
+
+          <form method="post" action="{{ url_for('web.ban_ip', server_id=server.id) }}" class="form-grid two align-end">
             <input type="hidden" name="jail" value="{{ jail.jail }}">
-            <input type="text" name="ip" placeholder="1.2.3.4" required>
+            <label>IP для бана
+              <input type="text" name="ip" placeholder="1.2.3.4" required>
+            </label>
             <button type="submit">Ban IP</button>
           </form>
-          {% for ip in jail.banned_ips %}
-            <form method="post" action="{{ url_for('web.unban_ip', server_id=server.id) }}" class="row gap wrap">
-              <input type="hidden" name="jail" value="{{ jail.jail }}">
-              <input type="hidden" name="ip" value="{{ ip }}">
-              <code>{{ ip }}</code>
-              <button type="submit">Unban</button>
-            </form>
-          {% endfor %}
+
+          <div class="stack compact">
+            {% for ip in jail.banned_ips %}
+              <form method="post" action="{{ url_for('web.unban_ip', server_id=server.id) }}" class="server-card inline-card row spread wrap gap">
+                <input type="hidden" name="jail" value="{{ jail.jail }}">
+                <input type="hidden" name="ip" value="{{ ip }}">
+                <code>{{ ip }}</code>
+                <button type="submit" class="secondary">Unban</button>
+              </form>
+            {% else %}
+              <div class="empty-inline">Сейчас забаненных IP нет.</div>
+            {% endfor %}
+          </div>
         </article>
       {% else %}
-        <p>Детали jail пока не получены.</p>
+        <div class="empty-inline">Детали jail пока не получены.</div>
       {% endfor %}
     {% endif %}
   </section>

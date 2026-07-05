@@ -1,14 +1,19 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="panel auth-card stack">
-  <div>
-    <h2>Вход</h2>
-    <p>Ну вот, без логина теперь никуда 🙂</p>
+  <div class="stack compact">
+    <p class="eyebrow">Secure access</p>
+    <h2>Вход в webmanageufw</h2>
+    <p class="lede">Панель для быстрых UFW/fail2ban операций на удалённых серверах. Сначала логин, потом уже геройства.</p>
   </div>
   <form method="post" class="stack">
     <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
-    <label>Логин<input type="text" name="username" required autofocus></label>
-    <label>Пароль<input type="password" name="password" required></label>
+    <label>Логин
+      <input type="text" name="username" required autofocus>
+    </label>
+    <label>Пароль
+      <input type="password" name="password" required>
+    </label>
     <button type="submit">Войти</button>
   </form>
 </section>

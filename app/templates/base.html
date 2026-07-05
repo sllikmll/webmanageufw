@@ -7,20 +7,30 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
-    <header class="shell">
-      <div class="header-row">
-        <div>
-          <h1><a href="{{ url_for('web.index') }}">webmanageufw</a></h1>
-          <p>Управление UFW и fail2ban на удалённых серверах через SSH</p>
+    <header class="site-header">
+      <div class="shell site-header__inner">
+        <div class="brand-block">
+          <a class="brand-mark" href="{{ url_for('web.index') }}">WU</a>
+          <div>
+            <p class="eyebrow">Firewall operations dashboard</p>
+            <h1><a href="{{ url_for('web.index') }}">webmanageufw</a></h1>
+            <p class="subtle">Удалённое управление UFW и fail2ban через SSH — без плясок с 15 вкладками и забытых команд.</p>
+          </div>
         </div>
-        {% if config.get('ADMIN_USERNAME') and session.get('authenticated') %}
-          <form method="post" action="{{ url_for('web.logout') }}">
-            <button type="submit" class="secondary">Выйти</button>
-          </form>
-        {% endif %}
+        <div class="header-actions">
+          {% if config.get('ADMIN_USERNAME') and session.get('authenticated') %}
+            <div class="user-chip">
+              <span class="dot dot--success"></span>
+              {{ config.get('ADMIN_USERNAME') }}
+            </div>
+            <form method="post" action="{{ url_for('web.logout') }}">
+              <button type="submit" class="secondary">Выйти</button>
+            </form>
+          {% endif %}
+        </div>
       </div>
     </header>
-    <main class="shell">
+    <main class="shell page-shell">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="flash-stack">

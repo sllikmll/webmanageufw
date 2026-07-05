@@ -5,7 +5,6 @@ from app.models import Server
 from app.crypto import CredentialCipher
 
 
-
 def build_app(tmp_path):
     return create_app({
         'TESTING': True,
@@ -13,7 +12,6 @@ def build_app(tmp_path):
         'SECRET_KEY': 'test-secret',
         'APP_ENCRYPTION_KEY': 'test-key-for-unit-tests',
     })
-
 
 
 def build_auth_app(tmp_path):
@@ -27,7 +25,6 @@ def build_auth_app(tmp_path):
     })
 
 
-
 def test_index_page_loads(tmp_path):
     app = build_app(tmp_path)
     try:
@@ -35,11 +32,11 @@ def test_index_page_loads(tmp_path):
         response = client.get('/')
 
         assert response.status_code == 200
-        assert 'Добавить сервер'.encode('utf-8') in response.data
+        assert 'Обзор инфраструктуры'.encode('utf-8') in response.data
+        assert 'Каталог серверов'.encode('utf-8') in response.data
     finally:
         SessionLocal.remove()
         db.engine.dispose()
-
 
 
 def test_healthcheck_returns_ok(tmp_path):
@@ -55,7 +52,6 @@ def test_healthcheck_returns_ok(tmp_path):
         db.engine.dispose()
 
 
-
 def test_login_required_redirects_to_login_page(tmp_path):
     app = build_auth_app(tmp_path)
     try:
@@ -69,7 +65,6 @@ def test_login_required_redirects_to_login_page(tmp_path):
         db.engine.dispose()
 
 
-
 def test_login_allows_access_with_valid_credentials(tmp_path):
     app = build_auth_app(tmp_path)
     try:
@@ -80,11 +75,10 @@ def test_login_allows_access_with_valid_credentials(tmp_path):
         }, follow_redirects=True)
 
         assert response.status_code == 200
-        assert 'Добавить сервер'.encode('utf-8') in response.data
+        assert 'Обзор инфраструктуры'.encode('utf-8') in response.data
     finally:
         SessionLocal.remove()
         db.engine.dispose()
-
 
 
 def test_add_server_stores_encrypted_credentials(tmp_path):
@@ -116,6 +110,55 @@ def test_add_server_stores_encrypted_credentials(tmp_path):
         SessionLocal.remove()
         db.engine.dispose()
 
+
+def test_index_search_filters_servers(tmp_path):
+    app = build_app(tmp_path)
+    try:
+        with app.app_context():
+            session = SessionLocal()
+            try:
+                session.add_all([
+                    Server(name='lin', host='172.16.0.17', port=22, username='root', auth_type='ssh_key'),
+                    Server(name='admger', host='194.147.215.252', port=22, username='root', auth_type='password'),
+                ])
+                session.commit()
+            finally:
+                session.close()
+
+        client = app.test_client()
+        response = client.get('/?q=lin')
+
+        assert response.status_code == 200
+        assert 'lin'.encode('utf-8') in response.data
+        assert 'admger'.encode('utf-8') not in response.data
+    finally:
+        SessionLocal.remove()
+        db.engine.dispose()
+
+
+def test_index_auth_type_filter_works(tmp_path):
+    app = build_app(tmp_path)
+    try:
+        with app.app_context():
+            session = SessionLocal()
+            try:
+                session.add_all([
+                    Server(name='key-box', host='10.0.0.1', port=22, username='root', auth_type='ssh_key'),
+                    Server(name='password-box', host='10.0.0.2', port=22, username='root', auth_type='password'),
+                ])
+                session.commit()
+            finally:
+                session.close()
+
+        client = app.test_client()
+        response = client.get('/?auth_type=ssh_key')
+
+        assert response.status_code == 200
+        assert 'key-box'.encode('utf-8') in response.data
+        assert 'password-box'.encode('utf-8') not in response.data
+    finally:
+        SessionLocal.remove()
+        db.engine.dispose()
 
 
 def test_update_server_changes_fields_and_credentials(tmp_path):
@@ -168,7 +211,6 @@ def test_update_server_changes_fields_and_credentials(tmp_path):
     finally:
         SessionLocal.remove()
         db.engine.dispose()
-
 
 
 def test_server_detail_shows_install_actions_when_packages_missing(tmp_path, monkeypatch):
