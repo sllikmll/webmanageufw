@@ -62,7 +62,7 @@ docker run --rm -p 8098:8080 \
 cp docker-compose.yml /root/docker/webmanageufw/docker-compose.yml
 mkdir -p /root/docker/webmanageufw/data
 cd /root/docker/webmanageufw
-# поменяй SECRET_KEY и APP_ENCRYPTION_KEY
+# поменяй SECRET_KEY, APP_ENCRYPTION_KEY, ADMIN_USERNAME и ADMIN_PASSWORD
 
 docker compose up -d
 ```
