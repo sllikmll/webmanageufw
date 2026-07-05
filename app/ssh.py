@@ -84,3 +84,33 @@ class RemoteExecutor:
         finally:
             if not persistent_client:
                 client.close()
+
+    def run_script(self, script: str, use_sudo: bool = False) -> str:
+        persistent_client = self._client is not None
+        client = self._client or self._connect()
+        try:
+            if use_sudo and self.creds.username != 'root':
+                sudo_password = self.creds.sudo_password or self.creds.password
+                if not sudo_password:
+                    raise RuntimeError('Для sudo-команд нужен sudo password')
+                stdin, stdout, stderr = client.exec_command("sudo -S -p '' bash -s")
+                stdin.write(sudo_password + "\n")
+                stdin.write(script)
+                if not script.endswith("\n"):
+                    stdin.write("\n")
+                stdin.flush()
+            else:
+                stdin, stdout, stderr = client.exec_command("bash -s")
+                stdin.write(script)
+                if not script.endswith("\n"):
+                    stdin.write("\n")
+                stdin.flush()
+            out = stdout.read().decode('utf-8', 'ignore')
+            err = stderr.read().decode('utf-8', 'ignore')
+            code = stdout.channel.recv_exit_status()
+            if code != 0:
+                raise RuntimeError(err.strip() or out.strip() or f'Команда завершилась с кодом {code}')
+            return out
+        finally:
+            if not persistent_client:
+                client.close()

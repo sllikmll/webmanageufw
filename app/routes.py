@@ -149,7 +149,7 @@ fi
 """.strip()
 
     with RemoteExecutor(_server_creds(server)) as executor:
-        payload = executor.run(bundle_command, use_sudo=True)
+        payload = executor.run_script(bundle_command, use_sudo=True)
 
     ufw_raw = _split_bundle_section(payload, 'UFW')
     if ufw_raw:
