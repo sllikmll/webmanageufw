@@ -112,35 +112,34 @@ def _ensure_package_installed(executor: RemoteExecutor, package_name: str):
 
 
 def _fetch_server_state(server: Server) -> dict:
-    executor = RemoteExecutor(_server_creds(server))
+    with RemoteExecutor(_server_creds(server)) as executor:
+        ufw_installed = _package_installed(executor, 'ufw')
+        if ufw_installed:
+            ufw = parse_ufw_status_numbered(executor.run('ufw status numbered', use_sudo=True))
+            ufw['installed'] = True
+        else:
+            ufw = {
+                'status': 'not-installed',
+                'rules': [],
+                'installed': False,
+                'raw': '',
+            }
 
-    ufw_installed = _package_installed(executor, 'ufw')
-    if ufw_installed:
-        ufw = parse_ufw_status_numbered(executor.run('ufw status numbered', use_sudo=True))
-        ufw['installed'] = True
-    else:
-        ufw = {
-            'status': 'not-installed',
-            'rules': [],
-            'installed': False,
-            'raw': '',
-        }
+        fail2ban_installed = _package_installed(executor, 'fail2ban')
+        jail_details = []
+        if fail2ban_installed:
+            fail2ban = parse_fail2ban_status(executor.run('fail2ban-client status', use_sudo=True))
+            fail2ban['installed'] = True
+            for jail in fail2ban['jails']:
+                jail_details.append(parse_fail2ban_jail_status(executor.run(f'fail2ban-client status {jail}', use_sudo=True)))
+        else:
+            fail2ban = {
+                'jails': [],
+                'installed': False,
+                'raw': '',
+            }
 
-    fail2ban_installed = _package_installed(executor, 'fail2ban')
-    jail_details = []
-    if fail2ban_installed:
-        fail2ban = parse_fail2ban_status(executor.run('fail2ban-client status', use_sudo=True))
-        fail2ban['installed'] = True
-        for jail in fail2ban['jails']:
-            jail_details.append(parse_fail2ban_jail_status(executor.run(f'fail2ban-client status {jail}', use_sudo=True)))
-    else:
-        fail2ban = {
-            'jails': [],
-            'installed': False,
-            'raw': '',
-        }
-
-    return {'ufw': ufw, 'fail2ban': fail2ban, 'jail_details': jail_details}
+        return {'ufw': ufw, 'fail2ban': fail2ban, 'jail_details': jail_details}
 
 
 def _apply_server_form(server: Server, form):

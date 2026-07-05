@@ -17,6 +17,7 @@ class SSHCredentials:
 class RemoteExecutor:
     def __init__(self, creds: SSHCredentials):
         self.creds = creds
+        self._client = None
 
     def _load_private_key(self, private_key: str):
         key_buffer = io.StringIO(private_key)
@@ -46,8 +47,23 @@ class RemoteExecutor:
         client.connect(**kwargs)
         return client
 
+    def __enter__(self):
+        if self._client is None:
+            self._client = self._connect()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
+
+    def close(self):
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
     def run(self, command: str, use_sudo: bool = False) -> str:
-        client = self._connect()
+        persistent_client = self._client is not None
+        client = self._client or self._connect()
         try:
             if use_sudo and self.creds.username != 'root':
                 sudo_password = self.creds.sudo_password or self.creds.password
@@ -66,4 +82,5 @@ class RemoteExecutor:
                 raise RuntimeError(err.strip() or out.strip() or f'Команда завершилась с кодом {code}')
             return out
         finally:
-            client.close()
+            if not persistent_client:
+                client.close()
