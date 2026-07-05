@@ -127,21 +127,24 @@ def _parse_jail_sections(payload: str) -> list[dict]:
 def _fetch_server_state(server: Server) -> dict:
     bundle_command = """
 if command -v ufw >/dev/null 2>&1; then
-  echo '### UFW ###'
+  printf '%s\n' '### UFW ###'
   ufw status numbered 2>&1 || true
-  echo '### END UFW ###'
+  printf '%s\n' '### END UFW ###'
 fi
 
 if command -v fail2ban-client >/dev/null 2>&1; then
-  echo '### FAIL2BAN ###'
+  printf '%s\n' '### FAIL2BAN ###'
   fail2ban-client status 2>&1 || true
-  echo '### END FAIL2BAN ###'
+  printf '%s\n' '### END FAIL2BAN ###'
 
-  for jail in $(fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' '\n' | sed 's/^ *//;s/ *$//' | sed '/^$/d'); do
-    echo \"### JAIL:${jail} ###\"
-    fail2ban-client status \"$jail\" 2>&1 || true
-    echo '### END JAIL ###'
-  done
+  jail_list=$(fail2ban-client status 2>/dev/null | awk -F'Jail list:' 'NF>1 {print $2}' | tr ',' '\n')
+  while IFS= read -r jail; do
+    jail=$(printf '%s' "$jail" | xargs)
+    [ -z "$jail" ] && continue
+    printf '### JAIL:%s ###\n' "$jail"
+    fail2ban-client status "$jail" 2>&1 || true
+    printf '%s\n' '### END JAIL ###'
+  done <<< "$jail_list"
 fi
 """.strip()
 
