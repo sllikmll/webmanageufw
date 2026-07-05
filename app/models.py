@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -12,6 +12,11 @@ def utc_now() -> datetime:
 
 class Server(Base):
     __tablename__ = 'servers'
+    __table_args__ = (
+        Index('ix_servers_name', 'name'),
+        Index('ix_servers_host', 'host'),
+        Index('ix_servers_auth_type', 'auth_type'),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)

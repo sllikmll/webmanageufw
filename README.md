@@ -46,7 +46,8 @@
 - имеет dashboard summary на главной;
 - поддерживает поиск и фильтрацию серверов;
 - показывает quick facts по credential type и sudo readiness;
-- даёт более user-friendly onboarding и empty states.
+- даёт более user-friendly onboarding и empty states;
+- использует SQL-level search/filter и индексы по часто используемым полям, чтобы список серверов открывался быстрее.
 
 ### Delivery
 - собирается в Docker image;

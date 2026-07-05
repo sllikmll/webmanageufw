@@ -1,6 +1,9 @@
 from functools import wraps
 from urllib.parse import urlparse
 
+from sqlalchemy import case, func, or_
+from sqlalchemy.orm import load_only
+
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from .crypto import CredentialCipher
@@ -172,32 +175,36 @@ def _apply_server_form(server: Server, form):
         server.encrypted_sudo_password = cipher.encrypt(sudo_password)
 
 
-def _build_dashboard_summary(servers: list[Server]) -> dict:
-    ssh_key_count = sum(1 for server in servers if server.auth_type == 'ssh_key')
-    password_count = sum(1 for server in servers if server.auth_type == 'password')
-    sudo_ready_count = sum(1 for server in servers if bool(server.encrypted_sudo_password))
+def _build_dashboard_summary(session_db) -> dict:
+    total, ssh_key_count, password_count, sudo_ready_count = session_db.query(
+        func.count(Server.id),
+        func.sum(case((Server.auth_type == 'ssh_key', 1), else_=0)),
+        func.sum(case((Server.auth_type == 'password', 1), else_=0)),
+        func.sum(case((Server.encrypted_sudo_password.is_not(None), 1), else_=0)),
+    ).one()
     return {
-        'total': len(servers),
-        'ssh_key_count': ssh_key_count,
-        'password_count': password_count,
-        'sudo_ready_count': sudo_ready_count,
+        'total': total or 0,
+        'ssh_key_count': ssh_key_count or 0,
+        'password_count': password_count or 0,
+        'sudo_ready_count': sudo_ready_count or 0,
     }
 
 
-def _filter_servers(servers: list[Server], search_query: str, auth_filter: str) -> list[Server]:
-    filtered = servers
+def _apply_index_filters(query, search_query: str, auth_filter: str):
     if auth_filter in {'password', 'ssh_key'}:
-        filtered = [server for server in filtered if server.auth_type == auth_filter]
+        query = query.filter(Server.auth_type == auth_filter)
 
     if search_query:
-        needle = search_query.lower()
-        filtered = [
-            server for server in filtered
-            if needle in server.name.lower()
-            or needle in server.host.lower()
-            or needle in server.username.lower()
-        ]
-    return filtered
+        pattern = f'%{search_query.lower()}%'
+        query = query.filter(
+            or_(
+                func.lower(Server.name).like(pattern),
+                func.lower(Server.host).like(pattern),
+                func.lower(Server.username).like(pattern),
+            )
+        )
+
+    return query
 
 
 def _server_card_meta(server: Server) -> dict:
@@ -247,8 +254,26 @@ def index():
 
     session_db = _session()
     try:
-        servers = session_db.query(Server).order_by(Server.name.asc()).all()
-        filtered_servers = _filter_servers(servers, search_query, auth_filter)
+        base_query = session_db.query(Server)
+        filtered_query = _apply_index_filters(base_query, search_query, auth_filter)
+        filtered_servers = (
+            filtered_query
+            .options(
+                load_only(
+                    Server.id,
+                    Server.name,
+                    Server.host,
+                    Server.port,
+                    Server.username,
+                    Server.auth_type,
+                    Server.encrypted_sudo_password,
+                    Server.created_at,
+                    Server.updated_at,
+                )
+            )
+            .order_by(Server.name.asc())
+            .all()
+        )
         server_cards = [
             {
                 'server': server,
@@ -260,7 +285,7 @@ def index():
             'index.html',
             servers=filtered_servers,
             server_cards=server_cards,
-            summary=_build_dashboard_summary(servers),
+            summary=_build_dashboard_summary(session_db),
             search_query=search_query,
             auth_filter=auth_filter,
             auth_enabled=_auth_enabled(),
