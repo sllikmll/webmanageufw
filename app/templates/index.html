@@ -30,7 +30,8 @@
             <p>{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
             <small>{{ server.auth_type }}</small>
           </div>
-          <div class="row gap">
+          <div class="row gap wrap">
+            <a class="button-link secondary" href="{{ url_for('web.edit_server', server_id=server.id) }}">Редактировать</a>
             <form method="post" action="{{ url_for('web.test_server', server_id=server.id) }}">
               <button type="submit">Проверить SSH</button>
             </form>

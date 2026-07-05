@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="panel auth-card stack">
+  <div>
+    <h2>Вход</h2>
+    <p>Ну вот, без логина теперь никуда 🙂</p>
+  </div>
+  <form method="post" class="stack">
+    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+    <label>Логин<input type="text" name="username" required autofocus></label>
+    <label>Пароль<input type="password" name="password" required></label>
+    <button type="submit">Войти</button>
+  </form>
+</section>
+{% endblock %}

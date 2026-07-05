@@ -8,9 +8,16 @@
   </head>
   <body>
     <header class="shell">
-      <div>
-        <h1><a href="{{ url_for('web.index') }}">webmanageufw</a></h1>
-        <p>Управление UFW и fail2ban на удалённых серверах через SSH</p>
+      <div class="header-row">
+        <div>
+          <h1><a href="{{ url_for('web.index') }}">webmanageufw</a></h1>
+          <p>Управление UFW и fail2ban на удалённых серверах через SSH</p>
+        </div>
+        {% if config.get('ADMIN_USERNAME') and session.get('authenticated') %}
+          <form method="post" action="{{ url_for('web.logout') }}">
+            <button type="submit" class="secondary">Выйти</button>
+          </form>
+        {% endif %}
       </div>
     </header>
     <main class="shell">

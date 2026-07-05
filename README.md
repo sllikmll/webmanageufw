@@ -7,19 +7,20 @@
 - хранит список серверов в SQLite;
 - поддерживает авторизацию по `password` или `SSH key`;
 - хранит секреты в зашифрованном виде (через `APP_ENCRYPTION_KEY`);
+- защищает UI через логин/пароль (`ADMIN_USERNAME` / `ADMIN_PASSWORD`);
 - проверяет SSH-подключение;
 - показывает `ufw status numbered`;
 - умеет `enable`, `disable`, `reload` для UFW;
 - умеет добавлять и удалять UFW rules;
 - показывает `fail2ban-client status` и список jail'ов;
 - умеет `banip` / `unbanip` для fail2ban;
+- умеет подсказать, что `ufw` / `fail2ban` не установлены, и установить их кнопкой из UI;
 - собирается в Docker image и публикуется в GHCR.
 
 ## Ограничения MVP
 
-- пока нет полноценного редактирования карточки сервера;
-- команды ожидают, что на удалённой машине уже установлены `ufw` и `fail2ban`;
 - для не-root пользователя нужен `sudo password`, если управление идёт через `sudo`.
+- установка пакетов сейчас рассчитана прежде всего на Debian/Ubuntu (`apt-get`).
 
 ## Локальный запуск
 
@@ -29,6 +30,8 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 export SECRET_KEY='change-me'
 export APP_ENCRYPTION_KEY='change-this-key'
+export ADMIN_USERNAME='admin'
+export ADMIN_PASSWORD='adminpass'
 python -m flask --app run:app run --debug
 ```
 
@@ -44,7 +47,13 @@ pytest tests/ -q
 
 ```bash
 docker build -t webmanageufw:local .
-docker run --rm -p 8098:8080   -e SECRET_KEY='change-me'   -e APP_ENCRYPTION_KEY='change-this-key'   -v $(pwd)/data:/app/data   webmanageufw:local
+docker run --rm -p 8098:8080 \
+  -e SECRET_KEY='change-me' \
+  -e APP_ENCRYPTION_KEY='change-this-key' \
+  -e ADMIN_USERNAME='admin' \
+  -e ADMIN_PASSWORD='adminpass' \
+  -v $(pwd)/data:/app/data \
+  webmanageufw:local
 ```
 
 ## Docker Compose

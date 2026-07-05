@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="panel stack">
+  <div class="row spread wrap">
+    <div>
+      <h2>Редактировать сервер</h2>
+      <p>{{ server.username }}@{{ server.host }}:{{ server.port }}</p>
+    </div>
+    <a class="button-link" href="{{ url_for('web.server_detail', server_id=server.id) }}">Назад</a>
+  </div>
+
+  <form method="post" action="{{ url_for('web.update_server', server_id=server.id) }}" class="stack">
+    <label>Название<input type="text" name="name" value="{{ server.name }}" required></label>
+    <label>IP / Host<input type="text" name="host" value="{{ server.host }}" required></label>
+    <label>Порт<input type="number" name="port" value="{{ server.port }}" required></label>
+    <label>Логин<input type="text" name="username" value="{{ server.username }}" required></label>
+    <label>Тип авторизации
+      <select name="auth_type">
+        <option value="password" {% if server.auth_type == 'password' %}selected{% endif %}>password</option>
+        <option value="ssh_key" {% if server.auth_type == 'ssh_key' %}selected{% endif %}>ssh key</option>
+      </select>
+    </label>
+    <label>Новый пароль <small>(оставь пустым, чтобы не менять)</small><input type="password" name="password"></label>
+    <label>Новый SSH key <small>(оставь пустым, чтобы не менять)</small><textarea name="private_key" rows="8" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
+    <label>Новый sudo password <small>(оставь пустым, чтобы не менять)</small><input type="password" name="sudo_password"></label>
+    <div class="row gap wrap">
+      <button type="submit">Сохранить изменения</button>
+      <a class="button-link secondary" href="{{ url_for('web.server_detail', server_id=server.id) }}">Отмена</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
